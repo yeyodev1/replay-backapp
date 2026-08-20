@@ -49,6 +49,8 @@ export const MODEL_CONTRACTS: Record<string, ModelContract> = {
     imageMode: "image_urls",
     maxImages: 1,
     aspectField: "size",
+    // Verificado en vivo: con imagen, wan2.5 rechaza `size` (el aspecto lo define la imagen)
+    aspectSkippedWithImage: true,
     sendResolution: true,
     constants: { watermark: false, prompt_extend: true },
     optionMap: {
