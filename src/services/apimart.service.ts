@@ -87,8 +87,6 @@ class ApimartService {
     else if (FAILED.has(statusRaw)) status = "failed";
 
     const videoUrl = this.extractVideoUrl(entry);
-    // Algunas respuestas marcan completed sin URL todavía: seguir en processing
-    if (status === "completed" && !videoUrl) status = "processing";
 
     const progress =
       typeof entry?.progress === "number"

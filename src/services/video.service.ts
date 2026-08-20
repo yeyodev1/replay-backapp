@@ -162,7 +162,9 @@ class VideoService {
     if (job.status === "completed" || job.status === "failed") return job;
 
     const task = await apimartService.getTask(job.taskId);
-    job.status = task.status;
+    // Un video "completed" sin URL aún no sirve: seguir esperando la URL
+    job.status =
+      task.status === "completed" && !task.videoUrl ? "processing" : task.status;
     if (task.progress !== undefined) job.progress = task.progress;
     if (task.videoUrl) job.videoUrl = task.videoUrl;
     if (task.error) job.error = task.error;
