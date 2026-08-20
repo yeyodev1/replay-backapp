@@ -2,6 +2,7 @@ import { HydratedDocument } from "mongoose";
 import { Asset, IAsset, AssetType } from "../models/asset.model";
 import { CustomError } from "../errors/customError.error";
 import { cloudinaryService } from "./cloudinary.service";
+import { apimartService } from "./apimart.service";
 
 type AssetDoc = HydratedDocument<IAsset>;
 
@@ -56,6 +57,64 @@ class AssetService {
       bytes: uploaded.bytes,
       format: uploaded.format,
       duration: uploaded.duration,
+    });
+  }
+
+  /** Crea una VOZ con IA (TTS) y la guarda en la biblioteca. */
+  async createVoiceFromText(input: {
+    name?: string;
+    text?: string;
+    voice?: string;
+    speed?: number;
+  }): Promise<AssetDoc> {
+    const name = input.name?.trim();
+    const text = input.text?.trim();
+    if (!name) throw new CustomError("El nombre de la voz es obligatorio", 400);
+    if (!text) throw new CustomError("Escribe el guion de la voz", 400);
+    if (text.length > 4096) throw new CustomError("El guion supera 4096 caracteres", 400);
+    const VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+    const voice = VOICES.includes(input.voice ?? "") ? input.voice! : "nova";
+    const speed = Math.min(2, Math.max(0.5, input.speed ?? 1));
+
+    const mp3 = await apimartService.generateSpeechMp3(text, voice, speed);
+    const dataUri = `data:audio/mpeg;base64,${mp3.toString("base64")}`;
+    const uploaded = await cloudinaryService.upload(dataUri, "voz");
+
+    return Asset.create({
+      name,
+      type: "voz",
+      url: uploaded.url,
+      publicId: uploaded.publicId,
+      resourceType: uploaded.resourceType,
+      bytes: uploaded.bytes,
+      format: uploaded.format,
+      duration: uploaded.duration,
+    });
+  }
+
+  /** Genera un ESCENARIO con IA (imagen) y lo guarda en la biblioteca. */
+  async createScenarioFromPrompt(input: {
+    name?: string;
+    prompt?: string;
+    size?: string;
+  }): Promise<AssetDoc> {
+    const name = input.name?.trim();
+    const prompt = input.prompt?.trim();
+    if (!name) throw new CustomError("El nombre del escenario es obligatorio", 400);
+    if (!prompt) throw new CustomError("Describe el escenario a generar", 400);
+    const size = ["16:9", "9:16", "1:1"].includes(input.size ?? "") ? input.size! : "16:9";
+
+    const tempUrl = await apimartService.generateImage(prompt, size);
+    const uploaded = await cloudinaryService.upload(tempUrl, "escenario");
+
+    return Asset.create({
+      name,
+      type: "escenario",
+      url: uploaded.url,
+      publicId: uploaded.publicId,
+      resourceType: uploaded.resourceType,
+      bytes: uploaded.bytes,
+      format: uploaded.format,
     });
   }
 

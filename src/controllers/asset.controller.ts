@@ -11,6 +11,24 @@ export async function createAsset(req: Request, res: Response, next: NextFunctio
   }
 }
 
+export async function createVoice(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { name, text, voice, speed } = req.body;
+    res.status(201).json(await assetService.createVoiceFromText({ name, text, voice, speed }));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createScenario(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { name, prompt, size } = req.body;
+    res.status(201).json(await assetService.createScenarioFromPrompt({ name, prompt, size }));
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function listAssets(req: Request, res: Response, next: NextFunction) {
   try {
     res.json(await assetService.list(req.query.type as string | undefined));

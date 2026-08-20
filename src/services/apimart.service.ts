@@ -110,6 +110,62 @@ class ApimartService {
     };
   }
 
+  /** TTS: genera audio mp3 (binario) con las voces de gpt-4o-mini-tts. */
+  async generateSpeechMp3(
+    input: string,
+    voice: string,
+    speed = 1.0,
+  ): Promise<Buffer> {
+    try {
+      const { data } = await this.client.post(
+        "/v1/audio/speech",
+        { model: "gpt-4o-mini-tts", input, voice, response_format: "mp3", speed },
+        { responseType: "arraybuffer", timeout: 120000 },
+      );
+      return Buffer.from(data);
+    } catch (error) {
+      throw this.wrapError(error, "Error generando la voz (TTS)");
+    }
+  }
+
+  /** Genera una imagen (nano banana) y espera el resultado. Devuelve la URL temporal. */
+  async generateImage(prompt: string, size = "16:9"): Promise<string> {
+    let taskId: string;
+    try {
+      const { data } = await this.client.post("/v1/images/generations", {
+        model: "gemini-2.5-flash-image-preview",
+        prompt,
+        size,
+        n: 1,
+      });
+      const entry = Array.isArray(data?.data) ? data.data[0] : data?.data;
+      taskId = entry?.task_id || data?.task_id;
+      if (!taskId) throw new CustomError("APIMart no devolvió task_id de imagen", 502, data);
+    } catch (error) {
+      throw this.wrapError(error, "Error creando la imagen");
+    }
+
+    for (let i = 0; i < 18; i++) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const task = await this.getTask(taskId);
+      const entry: any = task.raw ?? {};
+      const candidates = [
+        ...(Array.isArray(entry.result?.images)
+          ? entry.result.images.map((x: any) => x?.url ?? x)
+          : []),
+        ...(Array.isArray(entry.images) ? entry.images.map((x: any) => x?.url ?? x) : []),
+        entry.result?.url,
+        entry.image_url,
+      ].flat(2);
+      const url = candidates.find((c) => typeof c === "string" && /^https?:\/\//.test(c));
+      if (task.status === "completed" && url) return url as string;
+      if (task.status === "failed") {
+        throw new CustomError(task.error || "La generación de imagen falló", 502);
+      }
+    }
+    throw new CustomError("La imagen tardó demasiado; intenta de nuevo", 504);
+  }
+
   async getBalance(): Promise<AccountBalance> {
     try {
       const { data } = await this.client.get("/v1/user/balance");
