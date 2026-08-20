@@ -145,8 +145,8 @@ class ApimartService {
       throw this.wrapError(error, "Error creando la imagen");
     }
 
-    for (let i = 0; i < 18; i++) {
-      await new Promise((r) => setTimeout(r, 2500));
+    for (let i = 0; i < 36; i++) {
+      await new Promise((r) => setTimeout(r, 2800));
       const task = await this.getTask(taskId);
       const entry: any = task.raw ?? {};
       const candidates = [
