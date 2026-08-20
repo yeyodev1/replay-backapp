@@ -92,23 +92,51 @@ class AssetService {
     });
   }
 
-  /** Genera un ESCENARIO con IA (imagen) y lo guarda en la biblioteca. */
-  async createScenarioFromPrompt(input: {
+  /** Inicia la generación de un ESCENARIO con IA. Devuelve el task para polear. */
+  async startScenario(input: {
     name?: string;
     prompt?: string;
     size?: string;
-  }): Promise<AssetDoc> {
+  }): Promise<{ taskId: string }> {
     const name = input.name?.trim();
     const prompt = input.prompt?.trim();
     if (!name) throw new CustomError("El nombre del escenario es obligatorio", 400);
     if (!prompt) throw new CustomError("Describe el escenario a generar", 400);
     const size = ["16:9", "9:16", "1:1"].includes(input.size ?? "") ? input.size! : "16:9";
+    const taskId = await apimartService.createImageTask(prompt, size);
+    return { taskId };
+  }
 
-    const tempUrl = await apimartService.generateImage(prompt, size);
-    const uploaded = await cloudinaryService.upload(tempUrl, "escenario");
+  /** Polea el task del escenario; al completar sube a Cloudinary y crea el asset. */
+  async resolveScenario(
+    taskId: string,
+    name: string,
+  ): Promise<
+    | { status: "processing"; progress?: number }
+    | { status: "failed"; error: string }
+    | { status: "completed"; asset: AssetDoc }
+  > {
+    if (!taskId) throw new CustomError("taskId es obligatorio", 400);
+    const task = await apimartService.getTask(taskId);
+    const url = apimartService.extractImageUrl(task);
 
-    return Asset.create({
-      name,
+    if (task.status === "failed") {
+      return { status: "failed", error: task.error || "La generación falló" };
+    }
+    if (task.status !== "completed" || !url) {
+      return { status: "processing", progress: task.progress };
+    }
+
+    // Idempotencia: si ya se creó el asset de este task, devolverlo
+    const existing = await Asset.findOne({ name: name?.trim() || "Escenario IA", type: "escenario" })
+      .sort({ createdAt: -1 });
+    if (existing && Date.now() - new Date(existing.createdAt).getTime() < 120000) {
+      return { status: "completed", asset: existing };
+    }
+
+    const uploaded = await cloudinaryService.upload(url, "escenario");
+    const asset = await Asset.create({
+      name: name?.trim() || "Escenario IA",
       type: "escenario",
       url: uploaded.url,
       publicId: uploaded.publicId,
@@ -116,6 +144,7 @@ class AssetService {
       bytes: uploaded.bytes,
       format: uploaded.format,
     });
+    return { status: "completed", asset };
   }
 
   async list(type?: string): Promise<AssetDoc[]> {

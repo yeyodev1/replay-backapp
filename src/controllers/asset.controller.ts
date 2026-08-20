@@ -23,7 +23,17 @@ export async function createVoice(req: Request, res: Response, next: NextFunctio
 export async function createScenario(req: Request, res: Response, next: NextFunction) {
   try {
     const { name, prompt, size } = req.body;
-    res.status(201).json(await assetService.createScenarioFromPrompt({ name, prompt, size }));
+    res.status(202).json(await assetService.startScenario({ name, prompt, size }));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function scenarioStatus(req: Request, res: Response, next: NextFunction) {
+  try {
+    const taskId = String(req.query.taskId ?? "");
+    const name = String(req.query.name ?? "");
+    res.json(await assetService.resolveScenario(taskId, name));
   } catch (error) {
     next(error);
   }
