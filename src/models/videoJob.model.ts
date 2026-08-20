@@ -27,6 +27,8 @@ export interface IVideoJob {
   progress?: number;
   estimatedCostUsd: number;
   actualCostUsd?: number;
+  /** JSON literal enviado a APIMart (auditoria + replica exacta) */
+  sentPayload?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +55,7 @@ const videoJobSchema = new Schema<IVideoJob>(
     progress: { type: Number },
     estimatedCostUsd: { type: Number, required: true },
     actualCostUsd: { type: Number },
+    sentPayload: { type: Schema.Types.Mixed },
   },
   { timestamps: true },
 );

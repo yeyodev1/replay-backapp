@@ -52,6 +52,15 @@ export async function getVideo(req: Request, res: Response, next: NextFunction) 
   }
 }
 
+export async function replicateExact(req: Request, res: Response, next: NextFunction) {
+  try {
+    const job = await videoService.replicateExact(String(req.params.id));
+    res.status(201).json(job);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function deleteVideo(req: Request, res: Response, next: NextFunction) {
   try {
     await videoService.deleteJob(String(req.params.id));

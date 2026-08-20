@@ -11,6 +11,7 @@ import {
   DEFAULT_MODEL_ID,
 } from "../config/videoCatalog";
 import { apimartService } from "./apimart.service";
+import { buildPayloadFromContract } from "../config/modelContracts";
 
 type VideoJobDoc = HydratedDocument<IVideoJob>;
 
@@ -22,76 +23,6 @@ export interface CreateVideoJobInput {
   duration?: number;
   imageUrls?: string[];
   options?: VideoJobOptions;
-}
-
-/**
- * Cada modelo de APIMart tiene su propio contrato de payload
- * (documentado en docs.apimart.ai). Aquí se traduce el formulario
- * genérico al formato exacto de cada familia.
- */
-function buildPayload(
-  spec: VideoModelSpec,
-  input: Required<Pick<CreateVideoJobInput, "prompt">> & {
-    resolution: string;
-    aspectRatio: string;
-    duration: number;
-    imageUrls: string[];
-    options: VideoJobOptions;
-  },
-): Record<string, unknown> {
-  const { prompt, resolution, aspectRatio, duration, imageUrls, options } = input;
-  const base: Record<string, unknown> = { model: spec.id, prompt, duration };
-
-  switch (spec.id) {
-    case "seedance-1-0-pro-fast": {
-      base.resolution = resolution;
-      base.aspect_ratio = aspectRatio;
-      if (imageUrls.length) {
-        base.images = [{ url: imageUrls[0], role: "first_frame" }];
-      }
-      return base;
-    }
-    case "MiniMax-Hailuo-2.3-Fast": {
-      base.resolution = resolution;
-      base.first_frame_image = imageUrls[0];
-      base.prompt_optimizer = options.promptOptimizer ?? true;
-      base.watermark = false;
-      return base;
-    }
-    case "kling-v2-6": {
-      base.mode = "std";
-      base.aspect_ratio = aspectRatio;
-      if (imageUrls.length) base.image_urls = imageUrls.slice(0, 2);
-      return base;
-    }
-    case "wan2.5-preview": {
-      base.resolution = resolution;
-      base.size = aspectRatio;
-      base.watermark = false;
-      base.prompt_extend = true;
-      base.audio = options.audio ?? true;
-      if (options.audioUrl) base.audio_url = options.audioUrl;
-      if (options.negativePrompt) base.negative_prompt = options.negativePrompt;
-      if (options.seed !== undefined && options.seed >= 0) base.seed = options.seed;
-      if (imageUrls.length) base.image_urls = [imageUrls[0]];
-      return base;
-    }
-    case "sora-2": {
-      base.resolution = resolution;
-      if (imageUrls.length) {
-        base.image_urls = imageUrls;
-      } else {
-        base.aspect_ratio = aspectRatio;
-      }
-      return base;
-    }
-    default: {
-      base.resolution = resolution;
-      base.aspect_ratio = aspectRatio;
-      if (imageUrls.length) base.image_urls = imageUrls;
-      return base;
-    }
-  }
 }
 
 class VideoService {
@@ -160,7 +91,7 @@ class VideoService {
       promptOptimizer: input.options?.promptOptimizer,
     };
 
-    const payload = buildPayload(spec, {
+    const payload = buildPayloadFromContract(spec.id, {
       prompt,
       resolution,
       aspectRatio,
@@ -183,9 +114,36 @@ class VideoService {
       status: "pending",
       taskId,
       estimatedCostUsd: estimateCost(spec, resolution, duration),
+      sentPayload: payload,
     });
 
     return job;
+  }
+
+  /** Reenvia EXACTAMENTE el mismo JSON de un job anterior (replica 100% fiel). */
+  async replicateExact(id: string): Promise<VideoJobDoc> {
+    const source = await this.getJob(id);
+    if (!source.sentPayload) {
+      throw new CustomError(
+        "Este video no tiene payload guardado (es anterior a la mejora); usa Replicar normal",
+        400,
+      );
+    }
+    const taskId = await apimartService.createVideoTask(source.sentPayload as any);
+    return VideoJob.create({
+      prompt: source.prompt,
+      model: source.model,
+      modelName: source.modelName,
+      resolution: source.resolution,
+      aspectRatio: source.aspectRatio,
+      duration: source.duration,
+      imageUrls: source.imageUrls,
+      options: source.options,
+      status: "pending",
+      taskId,
+      estimatedCostUsd: source.estimatedCostUsd,
+      sentPayload: source.sentPayload,
+    });
   }
 
   async listJobs(): Promise<VideoJobDoc[]> {

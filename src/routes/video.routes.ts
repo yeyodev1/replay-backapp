@@ -6,6 +6,7 @@ import {
   getVideo,
   deleteVideo,
   getStats,
+  replicateExact,
 } from "../controllers/video.controller";
 
 const videoRouter = express.Router();
@@ -15,6 +16,7 @@ videoRouter.get("/stats", getStats);
 videoRouter.post("/", createVideo);
 videoRouter.get("/", listVideos);
 videoRouter.get("/:id", getVideo);
+videoRouter.post("/:id/replicate", replicateExact);
 videoRouter.delete("/:id", deleteVideo);
 
 export default videoRouter;
